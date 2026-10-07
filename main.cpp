@@ -201,19 +201,96 @@ double angularMomentum(const State& s)
            (s.x*s.vy - s.y*s.vx);
 }
 
+/* ==========================================================
+Scattering simulation
+============================================================*/
+
+double simulateScattering(double b)
+{
+    const double E = 5.0;         // MeV
+    const double x0 = 10000.0;    // fm
+    const double dt = 1.0;        // fm/c
+
+    // Start to the left of the nucleus
+
+    double initialX = -x0;
+    double initialY = b;
+
+    double r0 =
+        std::sqrt(initialX * initialX +
+                  initialY * initialY);
+
+    /* Initial velocity
+
+    E = 1/2 m v^2 + K/r0
+    v = sqrt(2(E - K/r0)/m) */
+
+    double potential0 = K / r0;
+
+    double kinetic0 = E - potential0;
+
+    double v0 =
+        std::sqrt(2.0 * kinetic0 / MASS_ALPHA);
+
+    State state {
+        initialX,
+        initialY,
+        v0,
+        0.0
+    };
+
+
+    // Simulation loop
+
+    const int MAX_STEPS = 1000000;
+
+    for (int i = 0; i < MAX_STEPS; ++i)
+    {
+        double r =
+            std::sqrt(state.x * state.x +
+                      state.y * state.y);
+
+        double radialVelocity =
+            state.x * state.vx +
+            state.y * state.vy;
+
+        /* The particle starts at approximately r = x0.
+        Stop when it reaches the same distance again after scattering. */
+
+        if (r >= x0 &&
+            radialVelocity > 0.0)
+        {
+            break;
+        }
+
+        // One RK4 step
+
+        state = rk4Step(state, dt);
+    }
+
+
+    // Numerical scattering angle
+
+    double theta =
+        std::atan2(state.vy, state.vx);
+
+    return theta;
+}
+
+
 // MAIN
+
 int main()
 {
-    // Number of Monte Carlo events
-    const int N = 100000;
+    // Monte Carlo parameters
 
-    // Maximum impact parameter [fm]
+    const int N = 5000;
     const double bMax = 100.0;
 
 
-/* ========================================================
-Random number generator
-========================================================*/
+    /* ========================================================
+    Random number generator
+    ========================================================*/
 
     std::random_device rd;
 
@@ -224,29 +301,74 @@ Random number generator
 
     // Output file
 
-    std::ofstream file("data/monte_carlo_impact_parameters.csv");
+    std::ofstream file("data/monte_carlo_scattering.csv");
 
-    file << "event,U,b\n";
+    file << "event,U,b,theta_numerical,theta_theory\n";
 
 
-/* ========================================================
-Monte Carlo loop
-========================================================*/
+    /* ========================================================
+    Monte Carlo simulation
+    ========================================================*/
+
+    const double E = 5.0;
+    const double pi = std::acos(-1.0);
 
     for (int i = 0; i < N; ++i)
     {
-        // Uniform random number U in [0, 1)
+        // Generate U uniformly in [0, 1)
+
         double U = uniform(generator);
 
+
         // Sample impact parameter
-        // p(b) = 2b / bMax^2
+
         double b = bMax * std::sqrt(U);
 
+
+        // Numerical scattering angle from RK4
+
+        double thetaNumerical =
+            simulateScattering(b);
+
+
+        // Analytical Rutherford angle
+
+        double thetaTheory =
+            2.0 * std::atan(
+                K / (2.0 * E * b)
+            );
+
+
+        // Convert radians to degrees
+
+        double thetaNumericalDeg =
+            thetaNumerical * 180.0 / pi;
+
+        double thetaTheoryDeg =
+            thetaTheory * 180.0 / pi;
+
+
         // Save event
+
         file
             << i << ","
             << U << ","
-            << b << "\n";
+            << b << ","
+            << thetaNumericalDeg << ","
+            << thetaTheoryDeg << "\n";
+
+
+        // Print progress every 100 events
+
+        if ((i + 1) % 100 == 0)
+        {
+            std::cout
+                << "Completed "
+                << i + 1
+                << " / "
+                << N
+                << " events\n";
+        }
     }
 
 
@@ -254,12 +376,10 @@ Monte Carlo loop
 
 
     std::cout
-        << "Generated "
-        << N
-        << " Monte Carlo events.\n";
+        << "\nMonte Carlo scattering simulation completed.\n";
 
     std::cout
-        << "Results saved to data/monte_carlo_impact_parameters.csv\n";
+        << "Results saved to data/monte_carlo_scattering.csv\n";
 
 
     return 0;

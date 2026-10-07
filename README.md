@@ -1,206 +1,179 @@
-# Monte Carlo impact parameter sampling
+# Monte Carlo scattering simulation with RK4
 
-This stage introduces Monte Carlo sampling of the impact parameter for the Rutherford scattering simulation.
+This stage extends the Monte Carlo impact-parameter sampling developed in the previous stage to a full Monte Carlo simulation of Rutherford scattering.
 
-The physical model, numerical trajectory integration, and validation of the numerical scattering angle against the analytical Rutherford solution were developed in the previous stages. This stage focuses only on generating and validating the distribution of impact parameters that will be used for the Monte Carlo scattering simulation.
-
-## From a single trajectory to a particle ensemble
-
-The previous stages considered individual alpha particles with specified impact parameters.
-
-For a Monte Carlo simulation, the impact parameter must instead be sampled randomly for a large number of incoming particles.
-
-The current simulation generates
+The previous stage generated impact parameters with the geometrically correct probability density
 
 ```math
-N=100000
+p(b)=\frac{2b}{b_{\max}^2}.
 ```
 
-Monte Carlo events with impact parameters in the range
+In this stage, each sampled impact parameter is used as the initial condition for an independent numerical scattering simulation. The trajectory of every alpha particle is integrated using the fourth-order Runge-Kutta method, and the resulting numerical scattering angle is compared with the analytical Rutherford prediction.
+
+## Monte Carlo scattering simulation
+
+The simulation generates
 
 ```math
-0\leq b\leq b_{\max},
+N=5000
 ```
 
-where
+independent scattering events.
+
+For each event, a uniform random number
+
+```math
+U\in[0,1)
+```
+
+is generated and transformed into an impact parameter using
+
+```math
+b=b_{\max}\sqrt{U},
+```
+
+with
 
 ```math
 b_{\max}=100\ \mathrm{fm}.
 ```
 
-Each generated value of $b$ represents the impact parameter of one incoming alpha particle.
+The physical origin and validation of this sampling procedure were considered in the previous stage.
+
+The new step introduced here is to use every sampled value of $b$ as the initial impact parameter of an alpha-particle trajectory.
 
 
-## Geometrical distribution of the impact parameter
+## Numerical scattering angle for each event
 
-The incoming alpha particles are assumed to be uniformly distributed over the transverse area around the target nucleus.
+For every sampled impact parameter $b$, the function `simulateScattering(b)` constructs the initial state of the alpha particle and numerically integrates its trajectory.
 
-The impact parameter $b$ is the perpendicular distance between the initial direction of motion of an incoming particle and the center of the nucleus.
-
-Consider particles whose impact parameters lie between $b$ and $b+db$. Their initial trajectories pass through an annulus with radius $b$ and thickness $db$.
-
-The area of this annulus is
+The particle starts at
 
 ```math
-dA=2\pi b\,db.
-```
-
-Therefore, the number of particles with impact parameters in this interval is proportional to
-
-```math
-dN\propto2\pi b\,db.
-```
-
-This means that the impact parameter itself must not be sampled uniformly.
-
-Larger values of $b$ correspond to larger annular areas and must therefore occur more frequently.
-
-For a maximum impact parameter $b_{\max}$, the total sampled area is
-
-```math
-A_{\mathrm{tot}}
-=
-\pi b_{\max}^2.
-```
-
-The normalized probability of finding a particle between $b$ and $b+db$ is therefore
-
-```math
-dP
-=
-\frac{dA}{A_{\mathrm{tot}}}
-=
-\frac{2\pi b\,db}
-{\pi b_{\max}^2}.
-```
-
-Thus,
-
-```math
-dP
-=
-\frac{2b}{b_{\max}^2}\,db,
-```
-
-and the probability density of the impact parameter is
-
-```math
-p(b)
-=
-\frac{2b}{b_{\max}^2},
+x=-x_0,
 \qquad
-0\leq b\leq b_{\max}.
+y=b,
 ```
 
-The distribution is normalized because
+where
 
 ```math
-\int_0^{b_{\max}}
-p(b)\,db
+x_0=10000\ \mathrm{fm}.
+```
+
+The numerical integration uses the same fourth-order Runge-Kutta method developed and validated in the previous stages, with
+
+```math
+\Delta t=1\ \mathrm{fm}/c.
+```
+
+The integration continues until the particle has passed the nucleus and reached approximately the initial radial distance while moving away from the scattering center.
+
+The final direction of motion is determined from the final velocity components. The numerical scattering angle is therefore
+
+```math
+\theta_{\mathrm{num}}
 =
-\int_0^{b_{\max}}
-\frac{2b}{b_{\max}^2}\,db
+\mathrm{atan2}(v_y,v_x).
+```
+
+
+## Analytical angle for each event
+
+For every generated impact parameter, the analytical Rutherford scattering angle is also calculated.
+
+The relation between impact parameter and scattering angle is
+
+```math
+b=
+\frac{K}{2E}
+\cot\left(\frac{\theta}{2}\right),
+```
+
+which gives
+
+```math
+\theta_{\mathrm{R}}
 =
-1.
+2\arctan
+\left(
+\frac{K}{2Eb}
+\right).
 ```
 
-## Sampling the distribution
-
-The C++ random number generator produces a uniformly distributed random number
+Therefore, each Monte Carlo event produces two scattering angles:
 
 ```math
-U\in[0,1).
+\theta_{\mathrm{num}}
 ```
 
-To transform this uniform random number into the required impact-parameter distribution, the cumulative distribution function is used.
-
-For the probability density
+from numerical RK4 trajectory integration, and
 
 ```math
-p(b)=\frac{2b}{b_{\max}^2},
+\theta_{\mathrm{R}}
 ```
 
-the cumulative probability is
+from the analytical Rutherford relation.
+
+Both angles are converted from radians to degrees before being written to the output file.
+
+## Monte Carlo output
+
+The results of all events are stored in
+
+`data/monte_carlo_scattering.csv`.
+
+For every event, the file contains
+
+`event`, `U`, `b`, `theta_numerical`, and `theta_theory`.
+
+
+## Scattering-angle distribution
+
+The script `analysis/analyze_monte_carlo_scattering.py` reads the numerical and analytical scattering angles from the Monte Carlo output.
+
+The first histogram shows the distribution of the numerical scattering angles obtained from the RK4 trajectories.
+
+![Monte Carlo scattering angle distribution](results/monte_carlo_scattering_angle_distribution.png)
+
+
+## Numerical angle error
+
+The second analysis compares the numerical and analytical scattering angles event by event.
+
+For every event, the angle difference is defined as
 
 ```math
-P(b)
+\Delta\theta
 =
-\int_0^b
-p(b')\,db'.
+\theta_{\mathrm{num}}
+-
+\theta_{\mathrm{R}}.
 ```
 
-Therefore,
+The Python analysis constructs a histogram of these differences.
+
+![Numerical angle error distribution](results/monte_carlo_angle_error_distribution.png)
+
+If the numerical solver reproduced the analytical Rutherford angle exactly for every event, all values would satisfy
 
 ```math
-P(b)
+\Delta\theta=0.
+```
+
+In the numerical simulation, the values are distributed around a small nonzero difference because the numerical trajectory is calculated over a finite distance rather than from and to infinity.
+
+The error distribution shows that
+
+```math
+\Delta\theta
 =
-\int_0^b
-\frac{2b'}{b_{\max}^2}\,db'
-=
-\frac{b^2}{b_{\max}^2}.
+\theta_{\mathrm{num}}
+-
+\theta_{\mathrm{R}}
+>0.
 ```
 
-Setting the cumulative probability equal to the uniform random number,
+Therefore, the numerical scattering angle is systematically slightly larger than the corresponding analytical Rutherford angle. This indicates a systematic difference rather than a purely random numerical fluctuation.
 
-```math
-U=
-\frac{b^2}{b_{\max}^2},
-```
-
-and solving for $b$ gives
-
-```math
-b
-=
-b_{\max}\sqrt{U}.
-```
-
-This transformation is used directly in the C++ Monte Carlo loop.
-
-Sampling $b$ uniformly would be incorrect because it would assign equal probability to equal intervals of $b$, even though the corresponding annular areas increase with radius.
-
-## Random number generation
-
-The C++ implementation uses the standard `<random>` library.
-
-A Mersenne Twister generator is initialized using `std::random_device`, and
-
-`std::uniform_real_distribution<double>(0.0, 1.0)`
-
-is used to generate the uniform random variable $U$.
-
-For each Monte Carlo event, the impact parameter is then calculated as
-
-```math
-b=b_{\max}\sqrt{U}.
-```
-
-The generated values are stored in
-
-`data/monte_carlo_impact_parameters.csv`
-
-with the columns
-
-`event`, `U`, and `b`.
-
-The event number identifies the Monte Carlo event, $U$ is the generated uniform random number, and $b$ is the corresponding sampled impact parameter in femtometres.
-
-## Validation of the sampling
-
-The script `analysis/plot_monte_carlo.py` reads the generated impact parameters and compares their numerical distribution with the theoretical probability density
-
-```math
-p(b)
-=
-\frac{2b}{b_{\max}^2}.
-```
-
-The Monte Carlo sample is displayed as a normalized histogram.
-
-Using a normalized histogram is important because the theoretical function $p(b)$ is a probability density rather than a number of events per bin.
-
-The theoretical distribution is plotted over the histogram for direct comparison.
-
-![Monte Carlo impact parameter distribution](results/impact_parameter_distribution.png)
-
-The expected distribution increases linearly with $b$. 
+In the next stage, the dependence of the discrepancy on the numerical simulation parameters will be studied in order to determine its source.
