@@ -200,29 +200,29 @@ double angularMomentum(const State& s)
            (s.x*s.vy - s.y*s.vx);
 }
 
+/* ==========================================================
+Scattering simulation
+============================================================*/
 
-// MAIN
-
-int main()
+double simulateScattering(double b)
 {
-    // Simulation parameters
-
     const double E = 5.0;         // MeV
-    const double b = 30.0;        // fm
     const double x0 = 10000.0;    // fm
+    const double dt = 1.0;        // fm/c
 
     // Start to the left of the nucleus
+
     double initialX = -x0;
     double initialY = b;
 
     double r0 =
-        std::sqrt(initialX*initialX +
-                  initialY*initialY);
+        std::sqrt(initialX * initialX +
+                  initialY * initialY);
 
     /* Initial velocity
 
     E = 1/2 m v^2 + K/r0
-    v = sqrt(2(E - K/r0)/m)  */
+    v = sqrt(2(E - K/r0)/m) */
 
     double potential0 = K / r0;
 
@@ -238,157 +238,117 @@ int main()
         0.0
     };
 
-    // Numerical parameters
 
-    const double dt = 1.0;   // fm/c
-    double t = 0.0;
-
-    // Initial conserved quantities
-
-    double E0 = totalEnergy(state);
-    double L0 = angularMomentum(state);
-
-    std::cout << std::setprecision(10);
-
-    std::cout << "Rutherford scattering simulation\n\n";
-
-    std::cout << "k = "
-              << K
-              << " MeV fm\n";
-
-    std::cout << "Initial distance = "
-              << r0
-              << " fm\n";
-
-    std::cout << "Initial potential energy = "
-              << potential0
-              << " MeV\n";
-
-    std::cout << "Initial velocity = "
-              << v0
-              << " c\n";
-
-    std::cout << "Initial total energy = "
-              << E0
-              << " MeV\n";
-
-    std::cout << "Initial angular momentum = "
-              << L0
-              << "\n\n";
-
-
-    // Save trajectory to CSV
-
-    std::ofstream file("trajectory.csv");
-
-    file << "t,x,y,vx,vy,E,L\n";
-
-    /* Simulation loop
-    The particle starts at approximately r = x0.
-    Stop when it reaches the same distance again after scattering. */
+    // Simulation loop
 
     const int MAX_STEPS = 1000000;
 
     for (int i = 0; i < MAX_STEPS; ++i)
     {
-        double energy =
-            totalEnergy(state);
-
-        double L =
-            angularMomentum(state);
-
-        file
-            << t << ","
-            << state.x << ","
-            << state.y << ","
-            << state.vx << ","
-            << state.vy << ","
-            << energy << ","
-            << L << "\n";
-
-
         double r =
-            std::sqrt(state.x*state.x +
-                      state.y*state.y);
+            std::sqrt(state.x * state.x +
+                      state.y * state.y);
 
-        if (r >= x0 && t > 100.0)
+        double radialVelocity =
+            state.x * state.vx +
+            state.y * state.vy;
+
+        /* The particle starts at approximately r = x0.
+        Stop when it reaches the same distance again after scattering. */
+
+        if (r >= x0 &&
+            radialVelocity > 0.0)
         {
-            // Check that the particle is moving away from the nucleus.
-            double radialVelocity =
-                state.x * state.vx +
-                state.y * state.vy;
-
-            if (radialVelocity > 0.0)
-                break;
+            break;
         }
 
-
         // One RK4 step
-        state = rk4Step(state, dt);
 
-        t += dt;
+        state = rk4Step(state, dt);
     }
 
-    file.close();
 
-
-    // Results
-
-    double Ef =
-        totalEnergy(state);
-
-    double Lf =
-        angularMomentum(state);
+    // Numerical scattering angle
 
     double theta =
         std::atan2(state.vy, state.vx);
 
-    // Convert radians to degrees
-    double thetaDegrees =
-        theta * 180.0 / std::acos(-1.0);
-
-    double thetaTheory =
-        2.0 * std::atan(K / (2.0 * E * b));
-
-    double thetaTheoryDegrees =
-        thetaTheory * 180.0 / std::acos(-1.0);
-
-    double angleDifference =
-        std::abs(thetaDegrees - thetaTheoryDegrees);
-
-    double relativeAngleError =
-        angleDifference / std::abs(thetaTheoryDegrees);
+    return theta;
+}
 
 
-    std::cout << "Final energy = "
-              << Ef
-              << " MeV\n";
+// MAIN
 
-    std::cout << "Relative energy error = "
-              << std::abs(Ef - E0) / E0
-              << "\n";
+int main()
+{
+    const double E = 5.0;   // MeV
 
-    std::cout << "Relative angular momentum error = "
-              << std::abs(Lf - L0) / std::abs(L0)
-              << "\n";
+    std::ofstream file("data/scattering_angles.csv");
 
-    std::cout << "Numerical scattering angle = "
-              << thetaDegrees
-              << " degrees\n";
+    file << "b,theta_numerical,theta_theory,relative_error\n";
 
-    std::cout << "Theoretical Rutherford angle = "
-              << thetaTheoryDegrees
-              << " degrees\n";
+    const double pi = std::acos(-1.0);
 
-    std::cout << "Angle difference = "
-              << angleDifference
-              << " degrees\n";
+    std::cout << std::setprecision(10);
 
-    std::cout << "Relative angle error = "
-              << relativeAngleError
-              << "\n";
+    std::cout
+        << "Rutherford scattering validation\n\n";
 
-    std::cout << "\nTrajectory saved to trajectory.csv\n";
+
+    // Compare numerical and analytical scattering angles
+
+    for (double b = 5.0; b <= 100.0; b += 5.0)
+    {
+        // Numerical result
+
+        double thetaNumerical =
+            simulateScattering(b);
+
+
+        // Rutherford analytical result
+
+        double thetaTheory =
+            2.0 * std::atan(K / (2.0 * E * b));
+
+
+        // Convert radians to degrees
+
+        double thetaNumericalDeg =
+            thetaNumerical * 180.0 / pi;
+
+        double thetaTheoryDeg =
+            thetaTheory * 180.0 / pi;
+
+
+        // Relative error
+
+        double relativeError =
+            std::abs(thetaNumericalDeg - thetaTheoryDeg)
+            / std::abs(thetaTheoryDeg);
+
+
+        // Save results to CSV
+
+        file
+            << b << ","
+            << thetaNumericalDeg << ","
+            << thetaTheoryDeg << ","
+            << relativeError << "\n";
+
+
+        std::cout
+            << "b = " << b
+            << " fm   theta_num = "
+            << thetaNumericalDeg
+            << " deg   theta_theory = "
+            << thetaTheoryDeg
+            << " deg\n";
+    }
+
+    file.close();
+
+    std::cout
+        << "\nResults saved to data/scattering_angles.csv\n";
 
     return 0;
 }

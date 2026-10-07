@@ -1,9 +1,13 @@
+from pathlib import Path
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 
+ROOT = Path(__file__).resolve().parent.parent
 
-data = pd.read_csv("trajectory.csv")
+data = pd.read_csv(
+    ROOT / "data" / "single_particle_trajectory_b30.csv"
+)
 
 x = data["x"]
 y = data["y"]
@@ -40,7 +44,10 @@ plt.ylim(-50, 200)
 
 
 plt.tight_layout()
-plt.savefig("single_particle_trajectory_b30.png", dpi=300, bbox_inches="tight")
-
+plt.savefig(
+    ROOT / "results" / "single_particle_trajectory_b30.png",
+    dpi=300,
+    bbox_inches="tight"
+)
 plt.show()
 plt.show()
