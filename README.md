@@ -1,276 +1,465 @@
-# Finite-distance and RK4 timestep convergence
+# Rutherford differential cross section validation
 
-In the previous stage, the Monte Carlo simulation showed a systematic difference between the numerical and analytical scattering angles:
+This stage extends the Monte Carlo simulation from individual scattering-angle validation to a direct numerical reconstruction of the Rutherford differential scattering cross section.
+
+The numerical trajectories are still calculated using the previously validated RK4 integrator. The impact parameters are sampled uniformly in transverse area as described in the previous Monte Carlo stage.
+
+The new goal is to test whether the complete numerical simulation reproduces the Rutherford angular distribution
 
 ```math
-\Delta\theta
-=
-\theta_{\mathrm{num}}
--
-\theta_{\mathrm{R}}
->0.
+\frac{d\sigma}{d\Omega}.
 ```
 
-The numerical scattering angle was consistently slightly larger than the analytical Rutherford prediction. Because the difference had the same sign across the simulated events, it could not be interpreted simply as a random numerical fluctuation.
+## Monte Carlo sample
 
-This stage investigates the origin of this discrepancy by testing two numerical parameters independently:
-
-- the finite starting and stopping distance $x_0$;
-- the RK4 integration timestep $\Delta t$.
-
-The tests are performed for a fixed impact parameter
+The simulation is performed for
 
 ```math
-b=30\ \mathrm{fm},
+N=50000
 ```
 
-for which the analytical Rutherford angle is
+events with
 
 ```math
-\theta_{\mathrm{R}}
+b_{\max}=100\ \mathrm{fm}.
+```
+
+A fixed random seed is used,
+
+```cpp
+const unsigned int seed = 7;
+```
+
+so that the Monte Carlo sample is reproducible.
+
+For each event, the sampled impact parameter is propagated through the Coulomb field using the RK4 trajectory integrator. The numerical scattering angle is then obtained from the final particle velocity.
+
+The resulting events are stored in
+
+```text
+data/monte_carlo_scattering50000.csv
+```
+
+and analyzed with
+
+```text
+analysis/plot_cross_section.py
+```
+
+## Minimum scattering angle
+
+Because the Monte Carlo simulation is restricted to
+
+```math
+b\leq b_{\max},
+```
+
+the generated sample has a minimum scattering angle.
+
+From the Rutherford relation
+
+```math
+\theta(b)
 =
 2\arctan
 \left(
 \frac{K}{2Eb}
-\right)
-\approx
-74.35198^\circ.
+\right),
 ```
 
-## Finite-distance convergence
-
-The analytical Rutherford scattering angle is an asymptotic quantity. The incoming and outgoing directions correspond to the particle being infinitely far from the scattering center, where the Coulomb interaction becomes negligible.
-
-The numerical simulation cannot start and stop at infinity. Instead, the alpha particle starts at
+the minimum angle corresponds to the maximum sampled impact parameter:
 
 ```math
-x=-x_0,
-\qquad
-y=b,
-```
-
-and the integration is stopped after scattering when the particle reaches approximately the same radial distance while moving away from the nucleus.
-
-Therefore, the numerical scattering angle is measured at a finite distance.
-
-To determine how strongly this affects the result, the simulation is repeated for
-
-```math
-x_0=
-500,\ 1000,\ 2000,\ 5000,\ 10000\ \mathrm{fm},
-```
-
-while keeping
-
-```math
-b=30\ \mathrm{fm}
-```
-
-and
-
-```math
-\Delta t=1\ \mathrm{fm}/c
-```
-
-fixed.
-
-The absolute difference from the Rutherford result is calculated as
-
-```math
-\Delta\theta
+\theta_{\min}
 =
-\left|
-\theta_{\mathrm{num}}
--
-\theta_{\mathrm{R}}
-\right|.
+2\arctan
+\left(
+\frac{K}{2Eb_{\max}}
+\right).
 ```
-
-The results are stored in `data/finite_distance_test.csv` and analyzed by `analysis/plot_finite_distance_test.py`.
-
-## Convergence toward the Rutherford angle
-
-The numerical scattering angle approaches the analytical Rutherford result as the starting distance is increased.
-
-![Finite-distance convergence](results/finite_distance_convergence.png)
-
-For the tested distances, the numerical angle changes approximately as
-
-```text
-x0 =   500 fm     theta_num ≈ 76.831 deg
-x0 =  1000 fm     theta_num ≈ 75.600 deg
-x0 =  2000 fm     theta_num ≈ 74.978 deg
-x0 =  5000 fm     theta_num ≈ 74.603 deg
-x0 = 10000 fm     theta_num ≈ 74.477 deg
-```
-
-while
-
-```math
-\theta_{\mathrm{R}}
-\approx
-74.35198^\circ.
-```
-
-Thus,
-
-```math
-x_0\uparrow
-\qquad\Longrightarrow\qquad
-\theta_{\mathrm{num}}
-\rightarrow
-\theta_{\mathrm{R}}.
-```
-
-This demonstrates that the systematic positive difference observed in the previous stage is strongly connected to the finite distance at which the numerical trajectory is started and stopped.
-
-At finite $x_0$, the Coulomb interaction is still nonzero. The velocity direction measured at the end of the numerical trajectory is therefore not yet exactly the asymptotic outgoing direction assumed in the Rutherford formula.
-
-
-## Scaling of the finite-distance error
-
-The decrease of the error with increasing $x_0$ shows an approximately inverse-distance dependence.
-
-For example, doubling the starting distance approximately halves the error:
-
-```math
-x_0
-\rightarrow
-2x_0
-```
-
-corresponds approximately to
-
-```math
-\Delta\theta
-\rightarrow
-\frac{\Delta\theta}{2}.
-```
-
-Equivalently, the product
-
-```math
-x_0\Delta\theta
-```
-
-remains approximately constant over the tested range.
-
-This suggests the empirical scaling
-
-```math
-\Delta\theta
-\propto
-\frac{1}{x_0}.
-```
-
-To test this behavior visually, the finite-distance error is plotted on logarithmic axes together with a reference dependence proportional to $1/x_0$.
-
-![Finite-distance error](results/finite_distance_error.png)
-
-
-For a general power law
-
-```math
-\Delta\theta
-=
-C x_0^n,
-```
-
-taking logarithms gives
-
-```math
-\log\Delta\theta
-=
-\log C
-+
-n\log x_0.
-```
-
-A power law therefore appears as a straight line on a log-log plot, with slope $n$.
 
 For
 
 ```math
-\Delta\theta
-\propto
-\frac{1}{x_0}
+E=5\ \mathrm{MeV},
+\qquad
+b_{\max}=100\ \mathrm{fm},
+```
+
+this gives approximately
+
+```math
+\theta_{\min}\approx25.6^\circ.
+```
+
+Therefore, scattering angles below this value are not represented in the Monte Carlo sample.
+
+## Angular binning
+
+The numerical scattering angles are divided into angular bins.
+
+The first bin begins at the physical lower limit
+
+```math
+\theta_{\min},
+```
+
+and the remaining bin edges are separated by
+
+```math
+\Delta\theta=5^\circ.
+```
+
+For each angular bin, the number of simulated events is counted:
+
+```math
+N_j.
+```
+
+The center of each bin is used only as the angular coordinate at which the corresponding Monte Carlo result is displayed.
+
+## Cross section represented by the Monte Carlo sample
+
+The sampled impact parameters cover a disk of radius
+
+```math
+b_{\max}.
+```
+
+Therefore, the total geometrical cross section represented by the simulation is
+
+```math
+\sigma_{\mathrm{sample}}
 =
-x_0^{-1},
+\pi b_{\max}^2.
 ```
 
-the expected slope is
+Since the sample contains `N` Monte Carlo events, each event represents the cross section
 
 ```math
-n=-1.
+\sigma_{\mathrm{event}}
+=
+\frac{\pi b_{\max}^2}{N}.
 ```
 
-## RK4 timestep convergence
-
-A second possible source of the discrepancy is the finite RK4 integration timestep.
-
-To test this independently, the starting distance and impact parameter are fixed at
+If an angular bin contains `N_j` events, the cross section associated with that bin is therefore
 
 ```math
-x_0=10000\ \mathrm{fm},
+\Delta\sigma_j
+=
+N_j\sigma_{\mathrm{event}}.
 ```
+
+This converts the Monte Carlo event counts into a physical cross section.
+
+## Solid angle of an angular bin
+
+In spherical coordinates,
 
 ```math
-b=30\ \mathrm{fm},
+d\Omega=\sin\theta\,d\theta\,d\phi.
 ```
 
-while the timestep is varied:
+For an azimuthally symmetric scattering process, the solid angle corresponding to an angular bin extending from $\theta_1$ to $\theta_2$ is obtained by integrating over the full azimuthal angle:
 
 ```math
-\Delta t=
-8,\ 4,\ 2,\ 1,\ 0.5\ \mathrm{fm}/c.
+\Delta\Omega
+=
+\int_0^{2\pi}
+\int_{\theta_1}^{\theta_2}
+\sin\theta\,d\theta\,d\phi.
 ```
 
-For each timestep, the trajectory is recalculated and the resulting scattering angle is compared with the same analytical Rutherford value.
-
-The results are stored in `data/timestep_convergence_test.csv`.
-
-The numerical scattering angle remains approximately
+First,
 
 ```math
-\theta_{\mathrm{num}}
-\approx
-74.4774^\circ
+\int_{\theta_1}^{\theta_2}
+\sin\theta\,d\theta
+=
+[-\cos\theta]_{\theta_1}^{\theta_2}
+=
+\cos\theta_1-\cos\theta_2.
 ```
 
-over the tested timestep range.
-
-Reducing the timestep therefore produces essentially no change in the calculated scattering angle at the precision relevant to the observed discrepancy.
-
-In particular, the remaining difference of approximately
+Therefore,
 
 ```math
-\Delta\theta
-\approx
-0.125^\circ
+\Delta\Omega
+=
+2\pi
+\left(
+\cos\theta_1-\cos\theta_2
+\right).
 ```
 
-at $x_0=10000$ fm does not disappear when the RK4 timestep is reduced.
-
-This indicates that the systematic difference observed in the previous stage is not primarily caused by insufficient RK4 timestep resolution.
-
-## Interpretation
-
-The two convergence tests separate two different numerical effects.
-
-The timestep test shows that the RK4 solution is already stable with respect to the integration step over the tested range:
+The Monte Carlo estimate of the differential cross section in each bin is then
 
 ```math
-\Delta t\downarrow
-\quad\not\Rightarrow\quad
-\Delta\theta\rightarrow0.
+\left(
+\frac{d\sigma}{d\Omega}
+\right)_{\mathrm{MC},j}
+=
+\frac{\Delta\sigma_j}{\Delta\Omega_j}.
 ```
 
-In contrast, the finite-distance test shows clear convergence toward the analytical result:
+
+## Statistical uncertainty
+
+The number of Monte Carlo events in each bin is subject to counting statistics.
+
+For a bin containing `N_j` events, the statistical uncertainty is approximated by
 
 ```math
-x_0\uparrow
-\quad\Rightarrow\quad
-\Delta\theta\downarrow.
+\Delta N_j
+=
+\sqrt{N_j}.
 ```
 
-Therefore, the systematic positive difference found in the previous Monte Carlo simulation is identified primarily as a finite-distance effect rather than an RK4 timestep error.
+Therefore, the uncertainty of the Monte Carlo differential cross section is
+
+```math
+\Delta
+\left(
+\frac{d\sigma}{d\Omega}
+\right)_j
+=
+\frac{
+\sqrt{N_j}\,
+\sigma_{\mathrm{event}}
+}{
+\Delta\Omega_j
+}.
+```
+
+These uncertainties are shown as error bars in the differential-cross-section plot.
+
+## Rutherford differential cross section
+
+The analytical Rutherford differential cross section is
+
+```math
+\frac{d\sigma}{d\Omega}
+=
+\left(
+\frac{K}{4E}
+\right)^2
+\frac{1}{
+\sin^4(\theta/2)
+}.
+```
+
+The Monte Carlo result reconstructed from the numerical RK4 trajectories is plotted together with this analytical prediction.
+
+Because the differential cross section spans several orders of magnitude over the simulated angular range, the vertical axis is shown on a logarithmic scale.
+
+The scattering-angle axis remains linear.
+
+![Rutherford differential cross section](results/rutherford_differential_cross_section.png)
+
+## Bin-averaged Rutherford prediction
+
+For a quantitative comparison, the analytical Rutherford prediction is averaged over exactly the same solid-angle bins as the Monte Carlo data.
+
+The Rutherford differential cross section is
+
+```math
+\frac{d\sigma}{d\Omega}
+=
+\frac{A}{\sin^4(\theta/2)},
+```
+
+where
+
+```math
+A=
+\left(
+\frac{K}{4E}
+\right)^2.
+```
+
+The cross section corresponding to one angular bin is obtained by integrating the differential cross section over its solid angle:
+
+```math
+\Delta\sigma_{\mathrm R}
+=
+\int_{\Delta\Omega}
+\frac{d\sigma}{d\Omega}\,d\Omega.
+```
+
+Using
+
+```math
+d\Omega
+=
+\sin\theta\,d\theta\,d\phi,
+```
+
+and integrating over the full azimuthal angle,
+
+```math
+\Delta\sigma_{\mathrm R}
+=
+\int_0^{2\pi}
+\int_{\theta_1}^{\theta_2}
+\frac{A}{\sin^4(\theta/2)}
+\sin\theta\,d\theta\,d\phi.
+```
+
+Therefore,
+
+```math
+\Delta\sigma_{\mathrm R}
+=
+2\pi A
+\int_{\theta_1}^{\theta_2}
+\frac{\sin\theta}
+{\sin^4(\theta/2)}
+\,d\theta.
+```
+
+The integral becomes
+
+```math
+\Delta\sigma_{\mathrm R}
+=
+4\pi A
+\left[
+\frac{1}{\sin^2(\theta_1/2)}
+-
+\frac{1}{\sin^2(\theta_2/2)}
+\right].
+```
+
+The Rutherford prediction averaged over the same solid-angle bin as the Monte Carlo result is therefore
+
+```math
+\left\langle
+\frac{d\sigma}{d\Omega}
+\right\rangle_{\mathrm R}
+=
+\frac{\Delta\sigma_{\mathrm R}}
+{\Delta\Omega}.
+```
+
+Using a bin-averaged theoretical value avoids comparing a finite-width Monte Carlo bin with the analytical function evaluated only at the center of that bin.
+
+
+## Relative residuals
+
+The agreement between the Monte Carlo simulation and Rutherford theory is quantified using the relative residual
+
+```math
+R_j
+=
+\frac{
+\left(d\sigma/d\Omega\right)_{\mathrm{MC},j}
+-
+\left\langle d\sigma/d\Omega\right\rangle_{\mathrm{R},j}
+}{
+\left\langle d\sigma/d\Omega\right\rangle_{\mathrm{R},j}
+}.
+```
+
+The residual is expressed as a percentage.
+
+A value
+
+```math
+R_j=0
+```
+
+corresponds to exact agreement with Rutherford theory.
+
+Positive residuals indicate that the Monte Carlo cross section is larger than the analytical prediction, while negative residuals indicate that it is smaller.
+
+The statistical uncertainty of the relative residual is
+
+```math
+\Delta R_j
+=
+\frac{
+\Delta(d\sigma/d\Omega)_{\mathrm{MC},j}
+}{
+\left\langle d\sigma/d\Omega\right\rangle_{\mathrm{R},j}
+}.
+```
+
+![Relative deviation from Rutherford theory](results/rutherford_relative_residuals.png)
+
+## Chi-squared goodness-of-fit test
+
+A chi-squared statistic is calculated to quantify the overall agreement between the Monte Carlo result and Rutherford theory.
+
+For each non-empty angular bin,
+
+```math
+\chi^2
+=
+\sum_j
+\left(
+\frac{R_j}{\Delta R_j}
+\right)^2.
+```
+
+This is equivalent to comparing the difference between the Monte Carlo and theoretical differential cross sections with the statistical uncertainty of each Monte Carlo bin.
+
+Since no parameters are fitted to the Monte Carlo data in this comparison, the number of degrees of freedom is taken as the number of non-empty angular bins:
+
+```math
+\nu=N_{\mathrm{bins}}.
+```
+
+The reduced chi-squared is
+
+```math
+\chi^2_{\mathrm{red}}
+=
+\frac{\chi^2}{\nu}.
+```
+
+These quantities provide a statistical measure of how well the complete Monte Carlo + RK4 simulation reproduces the analytical Rutherford differential cross section.
+
+## Result
+
+The reconstructed Monte Carlo differential cross section follows the analytical Rutherford prediction over the full simulated angular range.
+
+The agreement is particularly clear at small and intermediate scattering angles, where the Monte Carlo sample contains a large number of events and the statistical uncertainties are small.
+
+At large scattering angles the relative residuals fluctuate more strongly and the error bars increase substantially. This is expected because large-angle scattering corresponds to small impact parameters and therefore represents a much smaller part of the sampled geometrical cross section. Consequently, fewer Monte Carlo events populate these angular bins and their counting uncertainty is larger.
+
+Despite these larger fluctuations, the uncertainty intervals of almost all Monte Carlo points are consistent with the zero-residual line. Therefore, the observed deviations do not show a systematic departure from the Rutherford prediction.
+
+For the 31 non-empty angular bins, the goodness-of-fit test gives
+
+```math
+\chi^2 = 16.310,
+```
+
+with
+
+```math
+\nu = 31
+```
+
+degrees of freedom, corresponding to
+
+```math
+\chi^2_{\mathrm{red}}
+=
+\frac{\chi^2}{\nu}
+=
+0.526.
+```
+
+A reduced chi-squared of order unity indicates that the deviations between the numerical result and the theoretical prediction are compatible with the statistical uncertainties. Here,
+
+```math
+\chi^2_{\mathrm{red}}<1,
+```
+
+so the observed scatter is even smaller than would be expected from the estimated statistical error bars.
+
+Thus, within the statistical precision of the 50000-event Monte Carlo sample, no statistically significant disagreement with the Rutherford differential cross section is observed.
+
+
+The Monte Carlo simulation therefore reproduces the Rutherford differential scattering cross section within the statistical uncertainty of the generated sample.
