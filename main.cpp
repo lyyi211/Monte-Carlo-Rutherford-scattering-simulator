@@ -2,7 +2,7 @@
 #include <fstream>
 #include <cmath>
 #include <iomanip>
-#include <random>
+
 
 /* Particle state:
 x, y   - coordinates [fm]
@@ -14,6 +14,7 @@ struct State {
     double vx;
     double vy;
 };
+
 
 /* State derivative:
 dx/dt  = vx
@@ -58,7 +59,8 @@ Derivative equations(const State& s)
     double r  = std::sqrt(r2);
     double r3 = r2 * r;
 
-    /*a = F/m
+    /* a = F/m
+
     F_x = K*x/r^3
     F_y = K*y/r^3 */
 
@@ -98,6 +100,7 @@ One Runge-Kutta-4 step
 State rk4Step(const State& s, double dt)
 {
     // K1 = dt * f(Y_i)
+
     Derivative f1 = equations(s);
 
     Derivative K1 {
@@ -109,6 +112,7 @@ State rk4Step(const State& s, double dt)
 
 
     // K2 = dt * f(Y_i + K1/2)
+
     State s2 = add(s, K1, 0.5);
 
     Derivative f2 = equations(s2);
@@ -122,6 +126,7 @@ State rk4Step(const State& s, double dt)
 
 
     // K3 = dt * f(Y_i + K2/2)
+
     State s3 = add(s, K2, 0.5);
 
     Derivative f3 = equations(s3);
@@ -135,6 +140,7 @@ State rk4Step(const State& s, double dt)
 
 
     // K4 = dt * f(Y_i + K3)
+
     State s4 = add(s, K3, 1.0);
 
     Derivative f4 = equations(s4);
@@ -148,6 +154,7 @@ State rk4Step(const State& s, double dt)
 
 
     // Delta Y = (K1 + 2K2 + 2K3 + K4) / 6
+
     State result;
 
     result.x =
@@ -176,10 +183,11 @@ Total mechanical energy
 
 double totalEnergy(const State& s)
 {
-    double r = std::sqrt(s.x*s.x + s.y*s.y);
+    double r =
+        std::sqrt(s.x * s.x + s.y * s.y);
 
     double v2 =
-        s.vx*s.vx + s.vy*s.vy;
+        s.vx * s.vx + s.vy * s.vy;
 
     double kinetic =
         0.5 * MASS_ALPHA * v2;
@@ -198,39 +206,48 @@ Angular momentum L_z
 double angularMomentum(const State& s)
 {
     return MASS_ALPHA *
-           (s.x*s.vy - s.y*s.vx);
+           (s.x * s.vy - s.y * s.vx);
 }
+
 
 /* ==========================================================
 Scattering simulation
 ============================================================*/
 
-double simulateScattering(double b)
+double simulateScattering(
+    double b,
+    double x0,
+    double dt
+)
 {
-    const double E = 5.0;         // MeV
-    const double x0 = 10000.0;    // fm
-    const double dt = 1.0;        // fm/c
+    const double E = 5.0;   // MeV
 
-    // Start to the left of the nucleus
+    // Initial position
 
     double initialX = -x0;
     double initialY = b;
 
     double r0 =
-        std::sqrt(initialX * initialX +
-                  initialY * initialY);
+        std::sqrt(
+            initialX * initialX +
+            initialY * initialY
+        );
+
 
     /* Initial velocity
-
-    E = 1/2 m v^2 + K/r0
     v = sqrt(2(E - K/r0)/m) */
 
-    double potential0 = K / r0;
+    double potential0 =
+        K / r0;
 
-    double kinetic0 = E - potential0;
+    double kinetic0 =
+        E - potential0;
 
     double v0 =
-        std::sqrt(2.0 * kinetic0 / MASS_ALPHA);
+        std::sqrt(
+            2.0 * kinetic0 / MASS_ALPHA
+        );
+
 
     State state {
         initialX,
@@ -247,15 +264,15 @@ double simulateScattering(double b)
     for (int i = 0; i < MAX_STEPS; ++i)
     {
         double r =
-            std::sqrt(state.x * state.x +
-                      state.y * state.y);
+            std::sqrt(
+                state.x * state.x +
+                state.y * state.y
+            );
 
         double radialVelocity =
             state.x * state.vx +
             state.y * state.vy;
 
-        /* The particle starts at approximately r = x0.
-        Stop when it reaches the same distance again after scattering. */
 
         if (r >= x0 &&
             radialVelocity > 0.0)
@@ -263,16 +280,21 @@ double simulateScattering(double b)
             break;
         }
 
+
         // One RK4 step
 
-        state = rk4Step(state, dt);
+        state =
+            rk4Step(state, dt);
     }
 
 
     // Numerical scattering angle
 
     double theta =
-        std::atan2(state.vy, state.vx);
+        std::atan2(
+            state.vy,
+            state.vx
+        );
 
     return theta;
 }
@@ -282,104 +304,185 @@ double simulateScattering(double b)
 
 int main()
 {
-    // Monte Carlo parameters
+    const double E = 5.0;    // MeV
+    const double b = 30.0;   // fm
 
-    const int N = 5000;
-    const double bMax = 100.0;
-
-
-    /* ========================================================
-    Random number generator
-    ========================================================*/
-
-    std::random_device rd;
-
-    std::mt19937 generator(rd());
-
-    std::uniform_real_distribution<double> uniform(0.0, 1.0);
+    const double pi =
+        std::acos(-1.0);
 
 
-    // Output file
+    // Analytical Rutherford scattering angle
 
-    std::ofstream file("data/monte_carlo_scattering.csv");
+    double thetaTheory =
+        2.0 *
+        std::atan(
+            K / (2.0 * E * b)
+        );
 
-    file << "event,U,b,theta_numerical,theta_theory\n";
+    double thetaTheoryDeg =
+        thetaTheory * 180.0 / pi;
 
 
-    /* ========================================================
-    Monte Carlo simulation
-    ========================================================*/
+    std::cout << std::setprecision(10);
 
-    const double E = 5.0;
-    const double pi = std::acos(-1.0);
+    std::cout
+        << "Analytical Rutherford angle = "
+        << thetaTheoryDeg
+        << " deg\n\n";
 
-    for (int i = 0; i < N; ++i)
+
+    /* ======================================================
+    TEST 1
+    Finite-distance convergence
+    ======================================================*/
+
+    std::ofstream distanceFile(
+        "data/finite_distance_test.csv"
+    );
+
+    distanceFile
+        << "x0,theta_numerical,theta_theory,"
+        << "absolute_error\n";
+
+
+    const double dtDistance = 1.0;
+
+    double x0Values[] = {
+        500.0,
+        1000.0,
+        2000.0,
+        5000.0,
+        10000.0
+    };
+
+
+    std::cout
+        << "Finite-distance convergence test\n\n";
+
+
+    for (double x0 : x0Values)
     {
-        // Generate U uniformly in [0, 1)
-
-        double U = uniform(generator);
-
-
-        // Sample impact parameter
-
-        double b = bMax * std::sqrt(U);
-
-
-        // Numerical scattering angle from RK4
-
         double thetaNumerical =
-            simulateScattering(b);
-
-
-        // Analytical Rutherford angle
-
-        double thetaTheory =
-            2.0 * std::atan(
-                K / (2.0 * E * b)
+            simulateScattering(
+                b,
+                x0,
+                dtDistance
             );
 
-
-        // Convert radians to degrees
 
         double thetaNumericalDeg =
             thetaNumerical * 180.0 / pi;
 
-        double thetaTheoryDeg =
-            thetaTheory * 180.0 / pi;
+
+        double absoluteError =
+            std::abs(
+                thetaNumericalDeg -
+                thetaTheoryDeg
+            );
 
 
-        // Save event
-
-        file
-            << i << ","
-            << U << ","
-            << b << ","
+        distanceFile
+            << x0 << ","
             << thetaNumericalDeg << ","
-            << thetaTheoryDeg << "\n";
+            << thetaTheoryDeg << ","
+            << absoluteError << "\n";
 
 
-        // Print progress every 100 events
-
-        if ((i + 1) % 100 == 0)
-        {
-            std::cout
-                << "Completed "
-                << i + 1
-                << " / "
-                << N
-                << " events\n";
-        }
+        std::cout
+            << "x0 = "
+            << x0
+            << " fm   theta_num = "
+            << thetaNumericalDeg
+            << " deg   error = "
+            << absoluteError
+            << " deg\n";
     }
 
 
-    file.close();
+    distanceFile.close();
 
 
     std::cout
-        << "\nMonte Carlo scattering simulation completed.\n";
+        << "\nResults saved to "
+        << "data/finite_distance_test.csv\n\n";
+
+
+    /* ======================================================
+    TEST 2
+    RK4 timestep convergence
+    ======================================================*/
+
+    std::ofstream timestepFile(
+        "data/timestep_convergence_test.csv"
+    );
+
+    timestepFile
+        << "dt,theta_numerical,theta_theory,"
+        << "absolute_error\n";
+
+
+    const double x0Timestep =
+        10000.0;
+
+
+    double dtValues[] = {
+        8.0,
+        4.0,
+        2.0,
+        1.0,
+        0.5
+    };
+
 
     std::cout
-        << "Results saved to data/monte_carlo_scattering.csv\n";
+        << "RK4 timestep convergence test\n\n";
+
+
+    for (double dt : dtValues)
+    {
+        double thetaNumerical =
+            simulateScattering(
+                b,
+                x0Timestep,
+                dt
+            );
+
+
+        double thetaNumericalDeg =
+            thetaNumerical * 180.0 / pi;
+
+
+        double absoluteError =
+            std::abs(
+                thetaNumericalDeg -
+                thetaTheoryDeg
+            );
+
+
+        timestepFile
+            << dt << ","
+            << thetaNumericalDeg << ","
+            << thetaTheoryDeg << ","
+            << absoluteError << "\n";
+
+
+        std::cout
+            << "dt = "
+            << dt
+            << " fm/c   theta_num = "
+            << thetaNumericalDeg
+            << " deg   error = "
+            << absoluteError
+            << " deg\n";
+    }
+
+
+    timestepFile.close();
+
+
+    std::cout
+        << "\nResults saved to "
+        << "data/timestep_convergence_test.csv\n";
 
 
     return 0;
