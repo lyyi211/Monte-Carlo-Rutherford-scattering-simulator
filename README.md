@@ -1,244 +1,206 @@
-# Rutherford scattering: numerical vs analytical solution
+# Monte Carlo impact parameter sampling
 
-This stage extends the single-particle Rutherford scattering simulation developed in the previous commit.
+This stage introduces Monte Carlo sampling of the impact parameter for the Rutherford scattering simulation.
 
-The physical model, assumptions, equations of motion, initial conditions, and fourth-order Runge-Kutta integration method are described in the README of the previous stage. Here, the simulation is extended from a single impact parameter to a range of impact parameters in order to validate the numerical model against the analytical Rutherford scattering relation.
+The physical model, numerical trajectory integration, and validation of the numerical scattering angle against the analytical Rutherford solution were developed in the previous stages. This stage focuses only on generating and validating the distribution of impact parameters that will be used for the Monte Carlo scattering simulation.
 
-## Extension to multiple impact parameters
+## From a single trajectory to a particle ensemble
 
-In the previous stage, a single alpha-particle trajectory was simulated for a fixed impact parameter.
+The previous stages considered individual alpha particles with specified impact parameters.
 
-The simulation is now performed repeatedly for
+For a Monte Carlo simulation, the impact parameter must instead be sampled randomly for a large number of incoming particles.
+
+The current simulation generates
 
 ```math
-b = 5,\ 10,\ 15,\ \ldots,\ 100\ \mathrm{fm}.
+N=100000
 ```
 
-For each value of $b$, the alpha particle starts at
+Monte Carlo events with impact parameters in the range
 
 ```math
-x=-x_0,
-\qquad
-y=b,
-```
-
-with
-
-```math
-x_0=10000\ \mathrm{fm}.
-```
-
-The total mechanical energy and integration step remain fixed:
-
-```math
-E=5\ \mathrm{MeV},
-```
-
-```math
-\Delta t=1\ \mathrm{fm}/c.
-```
-
-The numerical integration for each impact parameter is performed independently using the same equations of motion and RK4 method as in the previous stage.
-
-To make this possible, the single-particle calculation is now implemented as a separate function
-
-`simulateScattering(b)`
-
-which takes the impact parameter as input and returns the corresponding numerical scattering angle.
-
-## Impact parameter and scattering angle
-
-A particle with a small impact parameter passes closer to the nucleus and experiences a stronger Coulomb deflection. It therefore leaves the interaction region at a larger scattering angle.
-
-For larger impact parameters, the particle remains farther from the nucleus, the deflection becomes weaker, and the scattering angle decreases.
-
-Thus, the simulation should reproduce the general behavior
-
-```math
-b \uparrow
-\quad\Rightarrow\quad
-\theta \downarrow.
-```
-
-## Analytical Rutherford relation
-
-For Coulomb scattering, the analytical relation between the impact parameter and the asymptotic scattering angle is
-
-```math
-b=
-\frac{K}{2E}
-\cot\left(
-\frac{\theta}{2}
-\right),
+0\leq b\leq b_{\max},
 ```
 
 where
 
 ```math
-K=
-\frac{Z_\alpha Z_{\mathrm{Au}}e^2}
-{4\pi\varepsilon_0},
+b_{\max}=100\ \mathrm{fm}.
 ```
 
+Each generated value of $b$ represents the impact parameter of one incoming alpha particle.
 
-and therefore
+
+## Geometrical distribution of the impact parameter
+
+The incoming alpha particles are assumed to be uniformly distributed over the transverse area around the target nucleus.
+
+The impact parameter $b$ is the perpendicular distance between the initial direction of motion of an incoming particle and the center of the nucleus.
+
+Consider particles whose impact parameters lie between $b$ and $b+db$. Their initial trajectories pass through an annulus with radius $b$ and thickness $db$.
+
+The area of this annulus is
 
 ```math
-\theta_{\mathrm{R}}(b)
+dA=2\pi b\,db.
+```
+
+Therefore, the number of particles with impact parameters in this interval is proportional to
+
+```math
+dN\propto2\pi b\,db.
+```
+
+This means that the impact parameter itself must not be sampled uniformly.
+
+Larger values of $b$ correspond to larger annular areas and must therefore occur more frequently.
+
+For a maximum impact parameter $b_{\max}$, the total sampled area is
+
+```math
+A_{\mathrm{tot}}
 =
-2\arctan\left(
-\frac{K}{2Eb}
-\right).
+\pi b_{\max}^2.
 ```
 
-This gives the analytical Rutherford scattering angle for every impact parameter used in the simulation.
-
-The limiting behavior of this expression agrees with the physical interpretation of the impact parameter.
-
-For small $b$,
+The normalized probability of finding a particle between $b$ and $b+db$ is therefore
 
 ```math
-\frac{K}{2Eb}
-```
-
-becomes large, so the scattering angle approaches
-
-```math
-\theta \rightarrow \pi.
-```
-
-This corresponds to strong backward scattering.
-
-For large $b$,
-
-```math
-\frac{K}{2Eb}
-```
-
-becomes small and therefore
-
-```math
-\theta \rightarrow 0.
-```
-
-The particle is then only weakly deflected.
-
-## Numerical scattering angle
-
-For every value of $b$, the equations of motion are integrated until the alpha particle has passed the nucleus and moved back out to approximately the initial radial distance.
-
-The numerical scattering angle is obtained from the final velocity vector:
-
-```math
-\theta_{\mathrm{num}}
+dP
 =
-\mathrm{atan2}(v_y,v_x).
+\frac{dA}{A_{\mathrm{tot}}}
+=
+\frac{2\pi b\,db}
+{\pi b_{\max}^2}.
 ```
 
-The numerical result can then be directly compared with
+Thus,
 
 ```math
-\theta_{\mathrm{R}}(b).
+dP
+=
+\frac{2b}{b_{\max}^2}\,db,
 ```
 
-The simulation therefore produces two scattering angles for each impact parameter:
+and the probability density of the impact parameter is
 
 ```math
-\theta_{\mathrm{num}}(b)
+p(b)
+=
+\frac{2b}{b_{\max}^2},
+\qquad
+0\leq b\leq b_{\max}.
 ```
 
-from the numerical RK4 trajectory, and
+The distribution is normalized because
 
 ```math
-\theta_{\mathrm{R}}(b)
+\int_0^{b_{\max}}
+p(b)\,db
+=
+\int_0^{b_{\max}}
+\frac{2b}{b_{\max}^2}\,db
+=
+1.
 ```
 
-from the analytical Rutherford expression.
+## Sampling the distribution
 
-The results are stored in
+The C++ random number generator produces a uniformly distributed random number
 
-`data/scattering_angles.csv`
+```math
+U\in[0,1).
+```
+
+To transform this uniform random number into the required impact-parameter distribution, the cumulative distribution function is used.
+
+For the probability density
+
+```math
+p(b)=\frac{2b}{b_{\max}^2},
+```
+
+the cumulative probability is
+
+```math
+P(b)
+=
+\int_0^b
+p(b')\,db'.
+```
+
+Therefore,
+
+```math
+P(b)
+=
+\int_0^b
+\frac{2b'}{b_{\max}^2}\,db'
+=
+\frac{b^2}{b_{\max}^2}.
+```
+
+Setting the cumulative probability equal to the uniform random number,
+
+```math
+U=
+\frac{b^2}{b_{\max}^2},
+```
+
+and solving for $b$ gives
+
+```math
+b
+=
+b_{\max}\sqrt{U}.
+```
+
+This transformation is used directly in the C++ Monte Carlo loop.
+
+Sampling $b$ uniformly would be incorrect because it would assign equal probability to equal intervals of $b$, even though the corresponding annular areas increase with radius.
+
+## Random number generation
+
+The C++ implementation uses the standard `<random>` library.
+
+A Mersenne Twister generator is initialized using `std::random_device`, and
+
+`std::uniform_real_distribution<double>(0.0, 1.0)`
+
+is used to generate the uniform random variable $U$.
+
+For each Monte Carlo event, the impact parameter is then calculated as
+
+```math
+b=b_{\max}\sqrt{U}.
+```
+
+The generated values are stored in
+
+`data/monte_carlo_impact_parameters.csv`
 
 with the columns
 
-`b`, `theta_numerical`, `theta_theory`, and `relative_error`.
+`event`, `U`, and `b`.
 
-## Relative error
+The event number identifies the Monte Carlo event, $U$ is the generated uniform random number, and $b$ is the corresponding sampled impact parameter in femtometres.
 
-For each impact parameter, the difference between the numerical and analytical results is quantified using the relative error
+## Validation of the sampling
+
+The script `analysis/plot_monte_carlo.py` reads the generated impact parameters and compares their numerical distribution with the theoretical probability density
 
 ```math
-\varepsilon_\theta
+p(b)
 =
-\frac{
-\left|
-\theta_{\mathrm{num}}
--
-\theta_{\mathrm{R}}
-\right|
-}{
-\left|
-\theta_{\mathrm{R}}
-\right|
-}.
+\frac{2b}{b_{\max}^2}.
 ```
 
-For visualization, the Python analysis script converts it to percent:
+The Monte Carlo sample is displayed as a normalized histogram.
 
-```math
-\varepsilon_\theta(\%)
-=
-100\varepsilon_\theta.
-```
+Using a normalized histogram is important because the theoretical function $p(b)$ is a probability density rather than a number of events per bin.
 
-The comparison serves as a validation of the numerical trajectory calculation. If the numerical integration reproduces Rutherford scattering, the RK4 results should follow the analytical dependence of the scattering angle on the impact parameter.
+The theoretical distribution is plotted over the histogram for direct comparison.
 
-A remaining difference does not necessarily originate from the RK4 integration itself. The analytical Rutherford relation describes asymptotic scattering, where the incoming and outgoing particle are considered infinitely far from the nucleus, while the numerical trajectory starts and stops at the finite distance $x_0$.
+![Monte Carlo impact parameter distribution](results/impact_parameter_distribution.png)
 
-## Numerical and analytical comparison
-
-The script `analysis/plot_comparison.py` reads the results generated by the C++ simulation and compares the numerical scattering angles with the analytical Rutherford prediction.
-
-The first plot shows both
-
-```math
-\theta_{\mathrm{num}}(b)
-```
-
-and
-
-```math
-\theta_{\mathrm{R}}(b)
-```
-
-as functions of the impact parameter.
-
-The analytical solution is shown as a continuous curve, while the numerical RK4 results are shown as individual simulated points.
-
-![Numerical and analytical Rutherford scattering angles](results/scattering_angle_comparison.png)
-
-Agreement between the numerical points and the analytical curve shows that the numerical equations of motion reproduce the expected Rutherford dependence over the tested range of impact parameters.
-
-## Relative error of the numerical angle
-
-The second plot shows the relative error of the numerical scattering angle as a function of impact parameter:
-
-```math
-\varepsilon_\theta(b)
-=
-\frac{
-\left|
-\theta_{\mathrm{num}}(b)
--
-\theta_{\mathrm{R}}(b)
-\right|
-}{
-\left|
-\theta_{\mathrm{R}}(b)
-\right|
-}.
-```
-
-![Relative error of numerical scattering angle](results/relative_error_num_angle.png)
-
-This plot makes deviations that are difficult to see in the direct angle comparison more visible and provides a quantitative measure of the agreement between the numerical and analytical solutions.
+The expected distribution increases linearly with $b$. 

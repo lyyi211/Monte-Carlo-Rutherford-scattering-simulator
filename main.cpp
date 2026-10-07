@@ -2,6 +2,7 @@
 #include <fstream>
 #include <cmath>
 #include <iomanip>
+#include <random>
 
 /* Particle state:
 x, y   - coordinates [fm]
@@ -200,155 +201,66 @@ double angularMomentum(const State& s)
            (s.x*s.vy - s.y*s.vx);
 }
 
-/* ==========================================================
-Scattering simulation
-============================================================*/
-
-double simulateScattering(double b)
-{
-    const double E = 5.0;         // MeV
-    const double x0 = 10000.0;    // fm
-    const double dt = 1.0;        // fm/c
-
-    // Start to the left of the nucleus
-
-    double initialX = -x0;
-    double initialY = b;
-
-    double r0 =
-        std::sqrt(initialX * initialX +
-                  initialY * initialY);
-
-    /* Initial velocity
-
-    E = 1/2 m v^2 + K/r0
-    v = sqrt(2(E - K/r0)/m) */
-
-    double potential0 = K / r0;
-
-    double kinetic0 = E - potential0;
-
-    double v0 =
-        std::sqrt(2.0 * kinetic0 / MASS_ALPHA);
-
-    State state {
-        initialX,
-        initialY,
-        v0,
-        0.0
-    };
-
-
-    // Simulation loop
-
-    const int MAX_STEPS = 1000000;
-
-    for (int i = 0; i < MAX_STEPS; ++i)
-    {
-        double r =
-            std::sqrt(state.x * state.x +
-                      state.y * state.y);
-
-        double radialVelocity =
-            state.x * state.vx +
-            state.y * state.vy;
-
-        /* The particle starts at approximately r = x0.
-        Stop when it reaches the same distance again after scattering. */
-
-        if (r >= x0 &&
-            radialVelocity > 0.0)
-        {
-            break;
-        }
-
-        // One RK4 step
-
-        state = rk4Step(state, dt);
-    }
-
-
-    // Numerical scattering angle
-
-    double theta =
-        std::atan2(state.vy, state.vx);
-
-    return theta;
-}
-
-
 // MAIN
-
 int main()
 {
-    const double E = 5.0;   // MeV
+    // Number of Monte Carlo events
+    const int N = 100000;
 
-    std::ofstream file("data/scattering_angles.csv");
-
-    file << "b,theta_numerical,theta_theory,relative_error\n";
-
-    const double pi = std::acos(-1.0);
-
-    std::cout << std::setprecision(10);
-
-    std::cout
-        << "Rutherford scattering validation\n\n";
+    // Maximum impact parameter [fm]
+    const double bMax = 100.0;
 
 
-    // Compare numerical and analytical scattering angles
+/* ========================================================
+Random number generator
+========================================================*/
 
-    for (double b = 5.0; b <= 100.0; b += 5.0)
+    std::random_device rd;
+
+    std::mt19937 generator(rd());
+
+    std::uniform_real_distribution<double> uniform(0.0, 1.0);
+
+
+    // Output file
+
+    std::ofstream file("data/monte_carlo_impact_parameters.csv");
+
+    file << "event,U,b\n";
+
+
+/* ========================================================
+Monte Carlo loop
+========================================================*/
+
+    for (int i = 0; i < N; ++i)
     {
-        // Numerical result
+        // Uniform random number U in [0, 1)
+        double U = uniform(generator);
 
-        double thetaNumerical =
-            simulateScattering(b);
+        // Sample impact parameter
+        // p(b) = 2b / bMax^2
+        double b = bMax * std::sqrt(U);
 
-
-        // Rutherford analytical result
-
-        double thetaTheory =
-            2.0 * std::atan(K / (2.0 * E * b));
-
-
-        // Convert radians to degrees
-
-        double thetaNumericalDeg =
-            thetaNumerical * 180.0 / pi;
-
-        double thetaTheoryDeg =
-            thetaTheory * 180.0 / pi;
-
-
-        // Relative error
-
-        double relativeError =
-            std::abs(thetaNumericalDeg - thetaTheoryDeg)
-            / std::abs(thetaTheoryDeg);
-
-
-        // Save results to CSV
-
+        // Save event
         file
-            << b << ","
-            << thetaNumericalDeg << ","
-            << thetaTheoryDeg << ","
-            << relativeError << "\n";
-
-
-        std::cout
-            << "b = " << b
-            << " fm   theta_num = "
-            << thetaNumericalDeg
-            << " deg   theta_theory = "
-            << thetaTheoryDeg
-            << " deg\n";
+            << i << ","
+            << U << ","
+            << b << "\n";
     }
+
 
     file.close();
 
+
     std::cout
-        << "\nResults saved to data/scattering_angles.csv\n";
+        << "Generated "
+        << N
+        << " Monte Carlo events.\n";
+
+    std::cout
+        << "Results saved to data/monte_carlo_impact_parameters.csv\n";
+
 
     return 0;
 }
